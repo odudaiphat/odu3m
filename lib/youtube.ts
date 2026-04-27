@@ -1,6 +1,21 @@
-import { guideVideos } from "@/lib/video-data";
+import type { Product } from "@/lib/site-data";
+import { guideVideos, type GuideVideo } from "@/lib/video-data";
 
-export type ParsedYoutubeRssVideo = {
+const YOUTUBE_RSS_URL =
+  "https://www.youtube.com/feeds/videos.xml?channel_id=UCJQQMfeG9xoCoYHqMD8e4JQ";
+
+export type ProductYoutubeVideo = {
+  id: string;
+  title: string;
+  description: string;
+  youtubeUrl: string;
+  youtubeId: string;
+  uploadDate?: string;
+  productSlug?: string;
+  projectSlug?: string;
+};
+
+type ParsedYoutubeRssVideo = {
   id: string;
   title: string;
   description: string;
@@ -9,60 +24,224 @@ export type ParsedYoutubeRssVideo = {
   uploadDate?: string;
 };
 
-export type ProductYoutubeVideo = ParsedYoutubeRssVideo;
+type ScoredVideo = {
+  video: ProductYoutubeVideo;
+  score: number;
+};
 
-const YOUTUBE_RSS =
-  "https://www.youtube.com/feeds/videos.xml?channel_id=UCJQQMfeG9xoCoYHqMD8e4JQ";
+export function getYoutubeId(youtubeUrl: string, youtubeId?: string) {
+  if (youtubeId?.trim()) return youtubeId.trim();
 
-export function getYoutubeId(url: string) {
-  const match = url.match(/v=([^&]+)/);
-  return match ? match[1] : "";
+  try {
+    const url = new URL(youtubeUrl);
+    const hostname = url.hostname.replace(/^www\./, "");
+
+    if (hostname === "youtu.be") {
+      return url.pathname.split("/").filter(Boolean)[0] ?? "";
+    }
+
+    if (hostname === "youtube.com" || hostname === "m.youtube.com") {
+      if (url.pathname.startsWith("/watch")) {
+        return url.searchParams.get("v") ?? "";
+      }
+
+      if (url.pathname.startsWith("/shorts/")) {
+        return url.pathname.split("/").filter(Boolean)[1] ?? "";
+      }
+
+      if (url.pathname.startsWith("/embed/")) {
+        return url.pathname.split("/").filter(Boolean)[1] ?? "";
+      }
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
 }
 
-export function getYoutubeThumbnail(url: string) {
-  const id = getYoutubeId(url);
+export function getYoutubeThumbnail(youtubeUrl: string, youtubeId?: string) {
+  const id = getYoutubeId(youtubeUrl, youtubeId);
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
 }
 
-export function getYoutubeEmbedUrl(url: string) {
-  const id = getYoutubeId(url);
-  return id ? `https://www.youtube.com/embed/${id}` : "";
+export function getYoutubeEmbedUrl(youtubeUrl: string, youtubeId?: string, autoplay = false) {
+  const id = getYoutubeId(youtubeUrl, youtubeId);
+  if (!id) return "";
+
+  return `https://www.youtube.com/embed/${id}${autoplay ? "?autoplay=1&rel=0" : "?rel=0"}`;
 }
 
-function getXmlTagValue(xml: string, tag: string) {
-  const match = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"));
-  return match ? match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim() : "";
+export function getYoutubeWatchUrl(youtubeUrl: string, youtubeId?: string) {
+  const id = getYoutubeId(youtubeUrl, youtubeId);
+  return id ? `https://www.youtube.com/watch?v=${id}` : youtubeUrl;
 }
 
-function getXmlAttr(xml: string, tag: string, attr: string) {
-  const match = xml.match(
-    new RegExp(`<${tag}[^>]*${attr}="([^"]+)"`, "i")
+function decodeXmlValue(value: string) {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
+
+function getXmlTagValue(xml: string, tagName: string) {
+  const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i");
+  const match = xml.match(regex);
+  return match?.[1] ? decodeXmlValue(match[1]) : "";
+}
+
+function getXmlAttributeValue(xml: string, tagName: string, attributeName: string) {
+  const regex = new RegExp(`<${tagName}[^>]*\\s${attributeName}=["']([^"']+)["'][^>]*>`, "i");
+  const match = xml.match(regex);
+  return match?.[1] ? decodeXmlValue(match[1]) : "";
+}
+
+function getRssEntryBlocks(xml: string) {
+  const matches = xml.match(/<entry\b[\s\S]*?<\/entry>/gi);
+  return matches ?? [];
+}
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactText(value: string) {
+  return normalizeText(value).replace(/\s+/g, "");
+}
+
+function getKeywordPhrases(product: Product) {
+  const specsText = product.specs.map((spec) => `${spec.label} ${spec.value}`);
+
+  const sourceValues = [
+    product.slug,
+    product.categorySlug,
+    product.name,
+    product.summary,
+    ...product.highlights,
+    ...product.applications,
+    ...specsText
+  ];
+
+  const unique = new Set<string>();
+
+  for (const value of sourceValues) {
+    const normalized = normalizeText(value);
+    if (normalized.length >= 3) unique.add(normalized);
+  }
+
+  return Array.from(unique);
+}
+
+function getImportantTokens(product: Product) {
+  const text = normalizeText(
+    [
+      product.slug,
+      product.categorySlug,
+      product.name,
+      product.summary,
+      ...product.highlights,
+      ...product.applications,
+      ...product.specs.map((spec) => spec.value)
+    ].join(" ")
   );
-  return match ? match[1] : "";
+
+  const ignored = new Set([
+    "du",
+    "o",
+    "ngoai",
+    "troi",
+    "cho",
+    "theo",
+    "phu",
+    "hop",
+    "voi",
+    "cao",
+    "cap",
+    "san",
+    "vuon",
+    "quan",
+    "cafe",
+    "khung",
+    "mau",
+    "nay",
+    "can",
+    "khu",
+    "vuc"
+  ]);
+
+  return Array.from(new Set(text.split(" ").filter((token) => token.length >= 3 && !ignored.has(token))));
 }
 
-function getEntries(xml: string) {
-  return xml.match(/<entry[\s\S]*?<\/entry>/g) || [];
+function scoreVideoForProduct(video: ProductYoutubeVideo, product: Product) {
+  const haystack = normalizeText(`${video.title} ${video.description}`);
+  const compactHaystack = compactText(haystack);
+  const slug = normalizeText(product.slug);
+  const name = normalizeText(product.name);
+  const category = normalizeText(product.categorySlug);
+
+  let score = 0;
+
+  if (compactHaystack.includes(compactText(slug))) score += 120;
+  if (name && haystack.includes(name)) score += 90;
+  if (category && haystack.includes(category)) score += 25;
+
+  for (const phrase of getKeywordPhrases(product)) {
+    if (phrase.length >= 8 && haystack.includes(phrase)) score += 12;
+  }
+
+  for (const token of getImportantTokens(product)) {
+    if (haystack.includes(token)) score += 4;
+  }
+
+  return score;
+}
+
+function dedupeVideos(videos: ProductYoutubeVideo[]) {
+  const seen = new Set<string>();
+
+  return videos.filter((video) => {
+    const key = video.youtubeId || video.id;
+    if (seen.has(key)) return false;
+
+    seen.add(key);
+    return true;
+  });
 }
 
 function parseYoutubeRss(xml: string): ParsedYoutubeRssVideo[] {
   const videos: ParsedYoutubeRssVideo[] = [];
 
-  for (const entry of getEntries(xml)) {
+  for (const entry of getRssEntryBlocks(xml)) {
     const youtubeId = getXmlTagValue(entry, "yt:videoId");
     const title = getXmlTagValue(entry, "title");
     const published = getXmlTagValue(entry, "published");
-    const description =
-      getXmlTagValue(entry, "media:description") || title;
-    const link = getXmlAttr(entry, "link", "href");
+    const description = getXmlTagValue(entry, "media:description") || title;
+    const link = getXmlAttributeValue(entry, "link", "href");
 
-    if (!youtubeId || !title) continue;
+    const youtubeUrl = getYoutubeWatchUrl(
+      link || `https://www.youtube.com/watch?v=${youtubeId}`,
+      youtubeId
+    );
+
+    if (!youtubeId || !title || !youtubeUrl) continue;
 
     videos.push({
       id: youtubeId,
       title,
       description,
-      youtubeUrl: link || `https://www.youtube.com/watch?v=${youtubeId}`,
+      youtubeUrl,
       youtubeId,
       uploadDate: published || undefined
     });
@@ -71,27 +250,89 @@ function parseYoutubeRss(xml: string): ParsedYoutubeRssVideo[] {
   return videos;
 }
 
-export async function getChannelVideos(): Promise<ProductYoutubeVideo[]> {
+function mapRssVideo(video: ParsedYoutubeRssVideo): ProductYoutubeVideo {
+  return {
+    id: video.id,
+    title: video.title,
+    description: video.description,
+    youtubeUrl: video.youtubeUrl,
+    youtubeId: video.youtubeId,
+    uploadDate: video.uploadDate
+  };
+}
+
+function mapGuideVideo(video: GuideVideo): ProductYoutubeVideo {
+  return {
+    id: video.id,
+    title: video.title,
+    description: video.description,
+    youtubeUrl: getYoutubeWatchUrl(video.youtubeUrl, video.youtubeId),
+    youtubeId: video.youtubeId,
+    uploadDate: video.uploadDate,
+    productSlug: video.productSlug,
+    projectSlug: video.projectSlug
+  };
+}
+
+function getFallbackVideos(product: Product, limit: number) {
+  const direct = guideVideos.filter((video) => video.productSlug === product.slug).map(mapGuideVideo);
+
+  if (direct.length > 0) {
+    return dedupeVideos(direct).slice(0, limit);
+  }
+
+  const scored = guideVideos
+    .map(mapGuideVideo)
+    .map((video): ScoredVideo => ({
+      video,
+      score: scoreVideoForProduct(video, product)
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.video);
+
+  if (scored.length > 0) {
+    return dedupeVideos(scored).slice(0, limit);
+  }
+
+  return dedupeVideos(guideVideos.filter((video) => video.featured).map(mapGuideVideo)).slice(0, limit);
+}
+
+export async function getChannelVideos() {
   try {
-    const res = await fetch(YOUTUBE_RSS, {
+    const response = await fetch(YOUTUBE_RSS_URL, {
       next: { revalidate: 3600 }
     });
 
-    if (!res.ok) return [];
+    if (!response.ok) return [];
 
-    const xml = await res.text();
-    return parseYoutubeRss(xml);
+    const xml = await response.text();
+
+    return dedupeVideos(parseYoutubeRss(xml).map(mapRssVideo));
   } catch {
     return [];
   }
 }
 
-export async function getProductVideos(product: any, limit = 3) {
-  const videos = await getChannelVideos();
+export async function getProductVideos(product: Product, limit = 3) {
+  const rssVideos = await getChannelVideos();
 
-  if (!videos.length) {
-    return guideVideos.slice(0, limit);
+  if (rssVideos.length === 0) {
+    return getFallbackVideos(product, limit);
   }
 
-  return videos.slice(0, limit);
+  const matched = rssVideos
+    .map((video): ScoredVideo => ({
+      video,
+      score: scoreVideoForProduct(video, product)
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.video);
+
+  if (matched.length > 0) {
+    return dedupeVideos(matched).slice(0, limit);
+  }
+
+  return dedupeVideos(rssVideos).slice(0, limit);
 }
