@@ -52,7 +52,7 @@ export const productCategories: ProductCategory[] = [
     intro: "Nhóm dù có trụ ở giữa, dễ bố trí cho quán cafe nhỏ, quán ăn, sân vườn và khu vực cần giải pháp che nắng gọn, ổn định.",
     seoTitle: "Dù tròn tâm giữa | Dễ bố trí cho quán cafe và quán ăn",
     seoDescription: "Dòng dù tròn tâm giữa gọn gàng, dễ bố trí cho quán cafe, quán ăn và khu vực ngoài trời có diện tích vừa và nhỏ.",
-    heroImage: "/images/du-san-vuon-beige.webp",
+    heroImage: "/images/du-chinh-tam-tron-3m-quay-tay.webp",
     benefits: ["Trụ giữa ổn định", "Dễ bố trí theo từng cụm bàn", "Chi phí hợp lý"]
   },
   {
