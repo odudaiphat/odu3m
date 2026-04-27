@@ -65,23 +65,14 @@ export function getYoutubeThumbnail(youtubeUrl: string, youtubeId?: string) {
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
 }
 
-export function getYoutubeEmbedUrl(
-  youtubeUrl: string,
-  youtubeId?: string,
-  autoplay = false
-) {
+export function getYoutubeEmbedUrl(youtubeUrl: string, youtubeId?: string, autoplay = false) {
   const id = getYoutubeId(youtubeUrl, youtubeId);
   if (!id) return "";
 
-  return `https://www.youtube.com/embed/${id}${
-    autoplay ? "?autoplay=1&rel=0" : "?rel=0"
-  }`;
+  return `https://www.youtube.com/embed/${id}${autoplay ? "?autoplay=1&rel=0" : "?rel=0"}`;
 }
 
-export function getYoutubeWatchUrl(
-  youtubeUrl: string,
-  youtubeId?: string
-) {
+export function getYoutubeWatchUrl(youtubeUrl: string, youtubeId?: string) {
   const id = getYoutubeId(youtubeUrl, youtubeId);
   return id ? `https://www.youtube.com/watch?v=${id}` : youtubeUrl;
 }
@@ -99,23 +90,13 @@ function decodeXmlValue(value: string) {
 }
 
 function getXmlTagValue(xml: string, tagName: string) {
-  const regex = new RegExp(
-    `<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`,
-    "i"
-  );
+  const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i");
   const match = xml.match(regex);
   return match?.[1] ? decodeXmlValue(match[1]) : "";
 }
 
-function getXmlAttributeValue(
-  xml: string,
-  tagName: string,
-  attributeName: string
-) {
-  const regex = new RegExp(
-    `<${tagName}[^>]*\\s${attributeName}=["']([^"']+)["'][^>]*>`,
-    "i"
-  );
+function getXmlAttributeValue(xml: string, tagName: string, attributeName: string) {
+  const regex = new RegExp(`<${tagName}[^>]*\\s${attributeName}=["']([^"']+)["'][^>]*>`, "i");
   const match = xml.match(regex);
   return match?.[1] ? decodeXmlValue(match[1]) : "";
 }
@@ -141,9 +122,7 @@ function compactText(value: string) {
 }
 
 function getKeywordPhrases(product: Product) {
-  const specsText = product.specs.map(
-    (spec) => `${spec.label} ${spec.value}`
-  );
+  const specsText = product.specs.map((spec) => `${spec.label} ${spec.value}`);
 
   const sourceValues = [
     product.slug,
@@ -193,25 +172,20 @@ function getImportantTokens(product: Product) {
     "san",
     "vuon",
     "quan",
-    "cafe"
+    "cafe",
+    "khung",
+    "mau",
+    "nay",
+    "can",
+    "khu",
+    "vuc"
   ]);
 
-  return Array.from(
-    new Set(
-      text
-        .split(" ")
-        .filter((t) => t.length >= 3 && !ignored.has(t))
-    )
-  );
+  return Array.from(new Set(text.split(" ").filter((token) => token.length >= 3 && !ignored.has(token))));
 }
 
-function scoreVideoForProduct(
-  video: ProductYoutubeVideo,
-  product: Product
-) {
-  const haystack = normalizeText(
-    `${video.title} ${video.description}`
-  );
+function scoreVideoForProduct(video: ProductYoutubeVideo, product: Product) {
+  const haystack = normalizeText(`${video.title} ${video.description}`);
   const compactHaystack = compactText(haystack);
   const slug = normalizeText(product.slug);
   const name = normalizeText(product.name);
@@ -237,9 +211,10 @@ function scoreVideoForProduct(
 function dedupeVideos(videos: ProductYoutubeVideo[]) {
   const seen = new Set<string>();
 
-  return videos.filter((v) => {
-    const key = v.youtubeId || v.id;
+  return videos.filter((video) => {
+    const key = video.youtubeId || video.id;
     if (seen.has(key)) return false;
+
     seen.add(key);
     return true;
   });
@@ -274,39 +249,8 @@ function parseYoutubeRss(xml: string): ParsedYoutubeRssVideo[] {
 
   return videos;
 }
-  return getRssEntryBlocks(xml)
-    .map((entry) => {
-      const youtubeId = getXmlTagValue(entry, "yt:videoId");
-      const title = getXmlTagValue(entry, "title");
-      const published = getXmlTagValue(entry, "published");
-      const description =
-        getXmlTagValue(entry, "media:description") || title;
-      const link = getXmlAttributeValue(entry, "link", "href");
 
-      const youtubeUrl = getYoutubeWatchUrl(
-        link || `https://www.youtube.com/watch?v=${youtubeId}`,
-        youtubeId
-      );
-
-      if (!youtubeId || !title || !youtubeUrl) return null;
-
-      return {
-        id: youtubeId,
-        title,
-        description,
-        youtubeUrl,
-        youtubeId,
-        uploadDate: published || undefined
-      };
-    })
-    .filter(
-      (v): v is ParsedYoutubeRssVideo => v !== null
-    );
-}
-
-function mapRssVideo(
-  video: ParsedYoutubeRssVideo
-): ProductYoutubeVideo {
+function mapRssVideo(video: ParsedYoutubeRssVideo): ProductYoutubeVideo {
   return {
     id: video.id,
     title: video.title,
@@ -317,17 +261,12 @@ function mapRssVideo(
   };
 }
 
-function mapGuideVideo(
-  video: GuideVideo
-): ProductYoutubeVideo {
+function mapGuideVideo(video: GuideVideo): ProductYoutubeVideo {
   return {
     id: video.id,
     title: video.title,
     description: video.description,
-    youtubeUrl: getYoutubeWatchUrl(
-      video.youtubeUrl,
-      video.youtubeId
-    ),
+    youtubeUrl: getYoutubeWatchUrl(video.youtubeUrl, video.youtubeId),
     youtubeId: video.youtubeId,
     uploadDate: video.uploadDate,
     productSlug: video.productSlug,
@@ -336,73 +275,64 @@ function mapGuideVideo(
 }
 
 function getFallbackVideos(product: Product, limit: number) {
-  const direct = guideVideos
-    .filter((v) => v.productSlug === product.slug)
-    .map(mapGuideVideo);
+  const direct = guideVideos.filter((video) => video.productSlug === product.slug).map(mapGuideVideo);
 
-  if (direct.length > 0)
+  if (direct.length > 0) {
     return dedupeVideos(direct).slice(0, limit);
+  }
 
   const scored = guideVideos
     .map(mapGuideVideo)
-    .map((v): ScoredVideo => ({
-      video: v,
-      score: scoreVideoForProduct(v, product)
+    .map((video): ScoredVideo => ({
+      video,
+      score: scoreVideoForProduct(video, product)
     }))
-    .filter((v) => v.score > 0)
+    .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
-    .map((v) => v.video);
+    .map((item) => item.video);
 
-  if (scored.length > 0)
+  if (scored.length > 0) {
     return dedupeVideos(scored).slice(0, limit);
+  }
 
-  return dedupeVideos(
-    guideVideos
-      .filter((v) => v.featured)
-      .map(mapGuideVideo)
-  ).slice(0, limit);
+  return dedupeVideos(guideVideos.filter((video) => video.featured).map(mapGuideVideo)).slice(0, limit);
 }
 
 export async function getChannelVideos() {
   try {
-    const res = await fetch(YOUTUBE_RSS_URL, {
+    const response = await fetch(YOUTUBE_RSS_URL, {
       next: { revalidate: 3600 }
     });
 
-    if (!res.ok) return [];
+    if (!response.ok) return [];
 
-    const xml = await res.text();
+    const xml = await response.text();
 
-    return dedupeVideos(
-      parseYoutubeRss(xml).map(mapRssVideo)
-    );
+    return dedupeVideos(parseYoutubeRss(xml).map(mapRssVideo));
   } catch {
     return [];
   }
 }
 
-export async function getProductVideos(
-  product: Product,
-  limit = 3
-) {
-  const rss = await getChannelVideos();
+export async function getProductVideos(product: Product, limit = 3) {
+  const rssVideos = await getChannelVideos();
 
-  if (rss.length === 0) {
+  if (rssVideos.length === 0) {
     return getFallbackVideos(product, limit);
   }
 
-  const matched = rss
-    .map((v): ScoredVideo => ({
-      video: v,
-      score: scoreVideoForProduct(v, product)
+  const matched = rssVideos
+    .map((video): ScoredVideo => ({
+      video,
+      score: scoreVideoForProduct(video, product)
     }))
-    .filter((v) => v.score > 0)
+    .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
-    .map((v) => v.video);
+    .map((item) => item.video);
 
   if (matched.length > 0) {
     return dedupeVideos(matched).slice(0, limit);
   }
 
-  return dedupeVideos(rss).slice(0, limit);
+  return dedupeVideos(rssVideos).slice(0, limit);
 }
