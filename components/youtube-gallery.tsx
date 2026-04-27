@@ -1,9 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { trackEvent } from "@/components/analytics";
 import { Container, SectionTitle } from "@/components/ui";
-import { getYoutubeEmbedUrl, getYoutubeId, getYoutubeThumbnail } from "@/lib/youtube";
+import {
+  getYoutubeEmbedUrl,
+  getYoutubeId,
+  getYoutubeThumbnail
+} from "@/lib/youtube";
 import { siteData } from "@/lib/site-data";
 import { getZaloWebUrl } from "@/lib/zalo";
 
@@ -18,7 +23,7 @@ type YoutubeVideo = {
 };
 
 type YoutubeGalleryProps = {
-  videos: YoutubeVideo[];
+  videos: readonly YoutubeVideo[];
   title: string;
   subtitle?: string;
   productSlug?: string;
@@ -44,6 +49,7 @@ export function YoutubeGallery({
     const filteredVideos = videos.filter((video) => {
       if (productSlug && video.productSlug && video.productSlug !== productSlug) return false;
       if (projectSlug && video.projectSlug && video.projectSlug !== projectSlug) return false;
+
       return Boolean(getYoutubeId(video.youtubeUrl, video.youtubeId));
     });
 
@@ -52,20 +58,33 @@ export function YoutubeGallery({
 
   function handlePlay(videoTitle: string, youtubeId: string) {
     setActiveVideoId(youtubeId);
-    trackEvent("play_video", { source, video_id: youtubeId, video_title: videoTitle });
+    trackEvent("play_video", {
+      source,
+      video_id: youtubeId,
+      video_title: videoTitle
+    });
   }
 
   function handleQuoteClick(videoTitle: string, youtubeId: string) {
-    trackEvent("quote_cta_click", { source, placement: "video_card", video_id: youtubeId, video_title: videoTitle });
+    trackEvent("quote_cta_click", {
+      source,
+      placement: "video_card",
+      video_id: youtubeId,
+      video_title: videoTitle
+    });
 
     const form = document.getElementById("lead-form");
+
     if (!form) {
       window.location.href = "/bao-gia";
       return;
     }
 
     const y = form.getBoundingClientRect().top + window.scrollY - 88;
-    window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    window.scrollTo({
+      top: Math.max(0, y),
+      behavior: "smooth"
+    });
 
     window.setTimeout(() => {
       const phoneField = form.querySelector<HTMLInputElement>("input[inputmode='tel']");
@@ -108,14 +127,18 @@ export function YoutubeGallery({
                       onClick={() => handlePlay(video.title, youtubeId)}
                       aria-label={`Xem video ngay trên website: ${video.title}`}
                     >
-                      <img
+                      <Image
                         src={thumbnailUrl}
                         alt={`Thumbnail video ${video.title}`}
                         title={video.title}
+                        width={480}
+                        height={360}
                         className="youtube-thumb-image video-thumb-image"
                         loading="lazy"
                       />
+
                       <span className="youtube-funnel-overlay" aria-hidden="true" />
+
                       <span className="youtube-play" aria-hidden="true">
                         <span className="youtube-play-icon">▶</span>
                         Xem ngay
@@ -128,15 +151,44 @@ export function YoutubeGallery({
                   <span>Video hướng dẫn</span>
                   <h3>{video.title}</h3>
                   <p>{video.description}</p>
+
                   {showCtas ? (
-                    <div className="video-card-actions" aria-label={`Hành động sau khi xem video ${video.title}`}>
-                      <a href={`tel:${siteData.phone}`} onClick={() => trackEvent("call_click", { source, placement: "video_card", video_id: youtubeId })}>
+                    <div
+                      className="video-card-actions"
+                      aria-label={`Hành động sau khi xem video ${video.title}`}
+                    >
+                      <a
+                        href={`tel:${siteData.phone}`}
+                        onClick={() =>
+                          trackEvent("call_click", {
+                            source,
+                            placement: "video_card",
+                            video_id: youtubeId
+                          })
+                        }
+                      >
                         Gọi tư vấn
                       </a>
-                      <a href={getZaloWebUrl(siteData.phone)} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("zalo_click", { source, placement: "video_card", video_id: youtubeId })}>
+
+                      <a
+                        href={getZaloWebUrl(siteData.phone)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() =>
+                          trackEvent("zalo_click", {
+                            source,
+                            placement: "video_card",
+                            video_id: youtubeId
+                          })
+                        }
+                      >
                         Nhắn Zalo
                       </a>
-                      <button type="button" onClick={() => handleQuoteClick(video.title, youtubeId)}>
+
+                      <button
+                        type="button"
+                        onClick={() => handleQuoteClick(video.title, youtubeId)}
+                      >
                         Nhận báo giá
                       </button>
                     </div>
