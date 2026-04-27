@@ -1,37 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import {
-  BaseSchemas,
-  BreadcrumbJsonLd,
-  FAQJsonLd,
-  JsonLd
-} from "@/components/schema";
+import { BaseSchemas, BreadcrumbJsonLd, FAQJsonLd, JsonLd } from "@/components/schema";
 import { SiteShell } from "@/components/site-shell";
-import {
-  Breadcrumbs,
-  Button,
-  Container,
-  InfoList,
-  SectionTitle
-} from "@/components/ui";
-import {
-  getCategory,
-  getProduct,
-  products,
-  siteData
-} from "@/lib/site-data";
+import { Breadcrumbs, Button, Container, InfoList, SectionTitle } from "@/components/ui";
+import { getCategory, getProduct, products, siteData } from "@/lib/site-data";
 import { ImageZoom } from "@/components/image-zoom";
 import { MediaGallery } from "@/components/media-gallery";
 import { YoutubeGallery } from "@/components/youtube-gallery";
-import {
-  productGallery,
-  videoGallery
-} from "@/lib/media-data";
-import {
-  getProductVideos,
-  getYoutubeEmbedUrl,
-  getYoutubeThumbnail
-} from "@/lib/youtube";
+import { productGallery, videoGallery } from "@/lib/media-data";
+import { getProductVideos, getYoutubeEmbedUrl, getYoutubeThumbnail } from "@/lib/youtube";
 import { VideoConversionCTA } from "@/components/video-conversion-cta";
 import { getZaloWebUrl } from "@/lib/zalo";
 
@@ -39,45 +16,29 @@ export function generateStaticParams() {
   return products.map((item) => ({ slug: item.slug }));
 }
 
-export async function generateMetadata({
-  params
-}: {
-  params: { slug: string };
-}): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const product = getProduct(params.slug);
   if (!product) return {};
 
   return {
     title: product.seoTitle,
     description: product.seoDescription,
-    alternates: {
-      canonical: `/san-pham/chi-tiet/${product.slug}`
-    },
+    alternates: { canonical: `/san-pham/chi-tiet/${product.slug}` },
     openGraph: {
       title: product.seoTitle,
       description: product.seoDescription,
       url: `${siteData.domain}/san-pham/chi-tiet/${product.slug}`,
-      images: [
-        {
-          url: product.image,
-          alt: `${product.name} tại Ô Dù Đại Phát`
-        }
-      ]
+      images: [{ url: product.image, alt: `${product.name} tại Ô Dù Đại Phát` }]
     }
   };
 }
 
-export default async function ProductDetailPage({
-  params
-}: {
-  params: { slug: string };
-}) {
+export default async function ProductDetailPage({ params }: { params: { slug: string } }) {
   const product = getProduct(params.slug);
   if (!product) notFound();
 
   const category = getCategory(product.categorySlug);
   const galleryItems = [...productGallery, ...videoGallery];
-
   const productVideos = await getProductVideos(product, 3);
 
   const productSchema = {
@@ -86,10 +47,7 @@ export default async function ProductDetailPage({
     name: product.name,
     description: product.seoDescription,
     image: `${siteData.domain}${product.image}`,
-    brand: {
-      "@type": "Brand",
-      name: siteData.brandName
-    },
+    brand: { "@type": "Brand", name: siteData.brandName },
     category: category?.name ?? "Ô dù ngoài trời",
     url: `${siteData.domain}/san-pham/chi-tiet/${product.slug}`,
     additionalProperty: product.specs.map((spec) => ({
@@ -101,24 +59,18 @@ export default async function ProductDetailPage({
 
   const videoSchemas = productVideos
     .map((video) => {
-      const thumb = getYoutubeThumbnail(
-        video.youtubeUrl,
-        video.youtubeId
-      );
-      const embed = getYoutubeEmbedUrl(
-        video.youtubeUrl,
-        video.youtubeId
-      );
+      const thumbnailUrl = getYoutubeThumbnail(video.youtubeUrl, video.youtubeId);
+      const embedUrl = getYoutubeEmbedUrl(video.youtubeUrl, video.youtubeId);
 
-      if (!thumb || !embed) return null;
+      if (!thumbnailUrl || !embedUrl) return null;
 
       const schema: Record<string, unknown> = {
         "@context": "https://schema.org",
         "@type": "VideoObject",
         name: video.title,
         description: video.description || video.title,
-        thumbnailUrl: [thumb],
-        embedUrl: embed,
+        thumbnailUrl: [thumbnailUrl],
+        embedUrl,
         contentUrl: video.youtubeUrl,
         url: video.youtubeUrl,
         inLanguage: "vi-VN",
@@ -135,35 +87,21 @@ export default async function ProductDetailPage({
 
       return schema;
     })
-    .filter(
-      (v): v is Record<string, unknown> => v !== null
-    );
+    .filter((schema): schema is Record<string, unknown> => schema !== null);
 
   return (
     <SiteShell>
       <BaseSchemas />
-
       <BreadcrumbJsonLd
         items={[
           { name: "Trang chủ", url: "/" },
           { name: "Sản phẩm", url: "/san-pham" },
-          {
-            name: category?.name ?? "Danh mục",
-            url: category
-              ? `/san-pham/${category.slug}`
-              : "/san-pham"
-          },
-          {
-            name: product.name,
-            url: `/san-pham/chi-tiet/${product.slug}`
-          }
+          { name: category?.name ?? "Danh mục", url: category ? `/san-pham/${category.slug}` : "/san-pham" },
+          { name: product.name, url: `/san-pham/chi-tiet/${product.slug}` }
         ]}
       />
-
       <JsonLd data={productSchema} />
-      {videoSchemas.length > 0 ? (
-        <JsonLd data={videoSchemas} />
-      ) : null}
+      {videoSchemas.length > 0 ? <JsonLd data={videoSchemas} /> : null}
       <FAQJsonLd items={product.faq} />
 
       <section className="page-hero">
@@ -172,23 +110,11 @@ export default async function ProductDetailPage({
             items={[
               { label: "Trang chủ", href: "/" },
               { label: "Sản phẩm", href: "/san-pham" },
-              {
-                label: category?.name ?? "Danh mục",
-                href: category
-                  ? `/san-pham/${category.slug}`
-                  : "/san-pham"
-              },
+              { label: category?.name ?? "Danh mục", href: category ? `/san-pham/${category.slug}` : "/san-pham" },
               { label: product.name }
             ]}
           />
-
-          <SectionTitle
-            eyebrow="Chi tiết sản phẩm"
-            title={product.name}
-            subtitle={product.summary}
-            align="left"
-            as="h1"
-          />
+          <SectionTitle eyebrow="Chi tiết sản phẩm" title={product.name} subtitle={product.summary} align="left" as="h1" />
         </Container>
       </section>
 
@@ -197,7 +123,7 @@ export default async function ProductDetailPage({
           <div className="product-detail-grid">
             <ImageZoom
               src={product.image}
-              alt={`${product.name}`}
+              alt={`${product.name} - ${category?.name ?? "ô dù ngoài trời"} tại Ô Dù Đại Phát`}
               width={800}
               height={560}
               className="detail-image"
@@ -209,10 +135,7 @@ export default async function ProductDetailPage({
 
               <div className="spec-grid">
                 {product.specs.map((spec) => (
-                  <div
-                    key={spec.label}
-                    className="spec-card"
-                  >
+                  <div key={spec.label} className="spec-card">
                     <strong>{spec.label}</strong>
                     <span>{spec.value}</span>
                   </div>
@@ -223,11 +146,7 @@ export default async function ProductDetailPage({
                 <Button href="/bao-gia" variant="primary">
                   Nhận báo giá
                 </Button>
-
-                <Button
-                  href={getZaloWebUrl(siteData.phone)}
-                  external
-                >
+                <Button href={getZaloWebUrl(siteData.phone)} external>
                   Nhắn Zalo
                 </Button>
               </div>
@@ -256,19 +175,10 @@ export default async function ProductDetailPage({
         <section className="section">
           <Container>
             <div className="content-card video-conversion-card">
-              <h2>
-                Xem xong video? Nhận báo giá đúng mẫu này
-                ngay
-              </h2>
-              <p>
-                Tư vấn nhanh trong 1–3 phút, chọn đúng
-                loại ô dù phù hợp nhu cầu.
-              </p>
+              <h2>Xem xong video? Nhận báo giá đúng mẫu này ngay</h2>
+              <p>Tư vấn nhanh trong 1–3 phút, chọn đúng loại ô dù phù hợp nhu cầu.</p>
 
-              <VideoConversionCTA
-                productSlug={product.slug}
-                productName={product.name}
-              />
+              <VideoConversionCTA productSlug={product.slug} productName={product.name} />
             </div>
           </Container>
         </section>
@@ -286,13 +196,8 @@ export default async function ProductDetailPage({
               <h2>Câu hỏi về sản phẩm</h2>
               <div className="faq-list compact-faq-list">
                 {product.faq.map((item) => (
-                  <details
-                    key={item.question}
-                    className="faq-item"
-                  >
-                    <summary>
-                      {item.question}
-                    </summary>
+                  <details key={item.question} className="faq-item">
+                    <summary>{item.question}</summary>
                     <p>{item.answer}</p>
                   </details>
                 ))}
