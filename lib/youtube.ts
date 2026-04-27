@@ -29,6 +29,26 @@ type ScoredVideo = {
   score: number;
 };
 
+type CategoryVideoInput = {
+  slug: string;
+  name: string;
+  intro?: string;
+  benefits?: string[];
+};
+
+const CATEGORY_VIDEO_KEYWORDS: Record<string, string[]> = {
+  "du-quan-cafe": [
+    "du quan cafe",
+    "du cafe",
+    "o du quan cafe",
+    "du che nang quan cafe",
+    "du san vuon",
+    "cafe san vuon",
+    "quan cafe",
+    "cafe"
+  ]
+};
+
 export function getYoutubeId(youtubeUrl: string, youtubeId?: string) {
   if (youtubeId?.trim()) return youtubeId.trim();
 
@@ -121,6 +141,18 @@ function compactText(value: string) {
   return normalizeText(value).replace(/\s+/g, "");
 }
 
+function dedupeVideos(videos: ProductYoutubeVideo[]) {
+  const seen = new Set<string>();
+
+  return videos.filter((video) => {
+    const key = video.youtubeId || video.id;
+    if (seen.has(key)) return false;
+
+    seen.add(key);
+    return true;
+  });
+}
+
 function getKeywordPhrases(product: Product) {
   const specsText = product.specs.map((spec) => `${spec.label} ${spec.value}`);
 
@@ -208,16 +240,44 @@ function scoreVideoForProduct(video: ProductYoutubeVideo, product: Product) {
   return score;
 }
 
-function dedupeVideos(videos: ProductYoutubeVideo[]) {
-  const seen = new Set<string>();
+function scoreVideoForCategory(video: ProductYoutubeVideo, category: CategoryVideoInput) {
+  const haystack = normalizeText(`${video.title} ${video.description}`);
+  const compactHaystack = compactText(haystack);
+  const slug = normalizeText(category.slug);
+  const name = normalizeText(category.name);
+  const intro = normalizeText(category.intro ?? "");
+  const customKeywords = CATEGORY_VIDEO_KEYWORDS[category.slug] ?? [];
 
-  return videos.filter((video) => {
-    const key = video.youtubeId || video.id;
-    if (seen.has(key)) return false;
+  let score = 0;
 
-    seen.add(key);
-    return true;
-  });
+  if (compactHaystack.includes(compactText(slug))) score += 200;
+  if (name && haystack.includes(name)) score += 140;
+
+  for (const keyword of customKeywords) {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) continue;
+
+    if (haystack.includes(normalizedKeyword)) {
+      score += 120;
+    }
+
+    for (const token of normalizedKeyword.split(" ")) {
+      if (token.length >= 3 && haystack.includes(token)) {
+        score += 40;
+      }
+    }
+  }
+
+  for (const benefit of category.benefits ?? []) {
+    const normalizedBenefit = normalizeText(benefit);
+    if (normalizedBenefit.length >= 8 && haystack.includes(normalizedBenefit)) {
+      score += 12;
+    }
+  }
+
+  if (intro && haystack.includes(intro)) score += 10;
+
+  return score;
 }
 
 function parseYoutubeRss(xml: string): ParsedYoutubeRssVideo[] {
@@ -230,38 +290,7 @@ function parseYoutubeRss(xml: string): ParsedYoutubeRssVideo[] {
     const description = getXmlTagValue(entry, "media:description") || title;
     const link = getXmlAttributeValue(entry, "link", "href");
 
-    const youtubeUrl = getYoutubeWatchUrl(
-      link || `https://www.youtube.com/watch?v=${youtubeId}`,
-      youtubeId
-    );
-
-    if (!youtubeId || !title || !youtubeUrl) continue;
-
-    videos.push({
-      id: youtubeId,
-      title,
-      description,
-      youtubeUrl,
-      youtubeId,
-      uploadDate: published || undefined
-    });
-  }
-
-  return videos;
-}
-  const videos: ParsedYoutubeRssVideo[] = [];
-
-  for (const entry of getRssEntryBlocks(xml)) {
-    const youtubeId = getXmlTagValue(entry, "yt:videoId");
-    const title = getXmlTagValue(entry, "title");
-    const published = getXmlTagValue(entry, "published");
-    const description = getXmlTagValue(entry, "media:description") || title;
-    const link = getXmlAttributeValue(entry, "link", "href");
-
-    const youtubeUrl = getYoutubeWatchUrl(
-      link || `https://www.youtube.com/watch?v=${youtubeId}`,
-      youtubeId
-    );
+    const youtubeUrl = getYoutubeWatchUrl(link || `https://www.youtube.com/watch?v=${youtubeId}`, youtubeId);
 
     if (!youtubeId || !title || !youtubeUrl) continue;
 
@@ -326,6 +355,24 @@ function getFallbackVideos(product: Product, limit: number) {
   return dedupeVideos(guideVideos.filter((video) => video.featured).map(mapGuideVideo)).slice(0, limit);
 }
 
+function getFallbackCategoryVideos(category: CategoryVideoInput, limit: number) {
+  const scored = guideVideos
+    .map(mapGuideVideo)
+    .map((video): ScoredVideo => ({
+      video,
+      score: scoreVideoForCategory(video, category)
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.video);
+
+  if (scored.length > 0) {
+    return dedupeVideos(scored).slice(0, limit);
+  }
+
+  return dedupeVideos(guideVideos.filter((video) => video.featured).map(mapGuideVideo)).slice(0, limit);
+}
+
 export async function getChannelVideos() {
   try {
     const response = await fetch(YOUTUBE_RSS_URL, {
@@ -364,65 +411,6 @@ export async function getProductVideos(product: Product, limit = 3) {
 
   return dedupeVideos(rssVideos).slice(0, limit);
 }
-type CategoryVideoInput = {
-  slug: string;
-  name: string;
-  intro?: string;
-  benefits?: string[];
-};
-
-const CATEGORY_VIDEO_KEYWORDS: Record<string, string[]> = {
-  "du-quan-cafe": [
-    "du quan cafe",
-    "du cafe",
-    "o du quan cafe",
-    "du che nang quan cafe",
-    "du san vuon",
-    "cafe san vuon",
-    "quan cafe",
-    "cafe"
-  ]
-};
-
-function scoreVideoForCategory(video: ProductYoutubeVideo, category: CategoryVideoInput) {
-  const haystack = normalizeText(`${video.title} ${video.description}`);
-  const compactHaystack = compactText(haystack);
-  const slug = normalizeText(category.slug);
-  const name = normalizeText(category.name);
-  const intro = normalizeText(category.intro ?? "");
-  const customKeywords = CATEGORY_VIDEO_KEYWORDS[category.slug] ?? [];
-
-  let score = 0;
-
-  if (compactHaystack.includes(compactText(slug))) score += 200;
-  if (name && haystack.includes(name)) score += 140;
-
-  for (const keyword of customKeywords) {
-    const normalizedKeyword = normalizeText(keyword);
-    if (!normalizedKeyword) continue;
-
-    if (haystack.includes(normalizedKeyword)) {
-      score += 120;
-    }
-
-    for (const token of normalizedKeyword.split(" ")) {
-      if (token.length >= 3 && haystack.includes(token)) {
-        score += 40;
-      }
-    }
-  }
-
-  for (const benefit of category.benefits ?? []) {
-    const normalizedBenefit = normalizeText(benefit);
-    if (normalizedBenefit.length >= 8 && haystack.includes(normalizedBenefit)) {
-      score += 12;
-    }
-  }
-
-  if (intro && haystack.includes(intro)) score += 10;
-
-  return score;
-}
 
 export async function getCategoryVideos(category: CategoryVideoInput, limit = 3) {
   const rssVideos = await getChannelVideos();
@@ -444,19 +432,5 @@ export async function getCategoryVideos(category: CategoryVideoInput, limit = 3)
     return dedupeVideos(rssVideos).slice(0, limit);
   }
 
-  const localMatched = guideVideos
-    .map(mapGuideVideo)
-    .map((video): ScoredVideo => ({
-      video,
-      score: scoreVideoForCategory(video, category)
-    }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map((item) => item.video);
-
-  if (localMatched.length > 0) {
-    return dedupeVideos(localMatched).slice(0, limit);
-  }
-
-  return dedupeVideos(guideVideos.filter((video) => video.featured).map(mapGuideVideo)).slice(0, limit);
+  return getFallbackCategoryVideos(category, limit);
 }
