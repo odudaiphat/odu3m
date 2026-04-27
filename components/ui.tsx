@@ -19,6 +19,7 @@ export function SectionTitle({
   as?: "h1" | "h2";
 }) {
   const TitleTag = as;
+
   return (
     <div className={`section-heading ${align === "left" ? "section-heading-left" : ""}`}>
       {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
@@ -39,11 +40,18 @@ export function Button({
   variant?: "primary" | "secondary";
   external?: boolean;
 }) {
-  const className = `button ${variant === "primary" ? "button-primary" : "button-secondary"}`;
+  const className = `button ${
+    variant === "primary" ? "button-primary" : "button-secondary"
+  }`;
 
   if (external || href.startsWith("http") || href.startsWith("tel:")) {
     return (
-      <a href={href} className={className} target={href.startsWith("http") ? "_blank" : undefined} rel={href.startsWith("http") ? "noreferrer" : undefined}>
+      <a
+        href={href}
+        className={className}
+        target={href.startsWith("http") ? "_blank" : undefined}
+        rel={href.startsWith("http") ? "noreferrer" : undefined}
+      >
         {children}
       </a>
     );
@@ -56,7 +64,7 @@ export function Button({
   );
 }
 
-export function InfoList({ items }: { items: string[] }) {
+export function InfoList({ items }: { items: readonly string[] }) {
   return (
     <ul className="check-list">
       {items.map((item) => (
@@ -66,7 +74,11 @@ export function InfoList({ items }: { items: string[] }) {
   );
 }
 
-export function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
+export function Breadcrumbs({
+  items
+}: {
+  items: readonly { readonly label: string; readonly href?: string }[];
+}) {
   return (
     <nav aria-label="Breadcrumb" className="breadcrumbs">
       {items.map((item, index) => (
