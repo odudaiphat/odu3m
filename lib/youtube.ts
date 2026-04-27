@@ -249,6 +249,34 @@ function parseYoutubeRss(xml: string): ParsedYoutubeRssVideo[] {
 
   return videos;
 }
+  const videos: ParsedYoutubeRssVideo[] = [];
+
+  for (const entry of getRssEntryBlocks(xml)) {
+    const youtubeId = getXmlTagValue(entry, "yt:videoId");
+    const title = getXmlTagValue(entry, "title");
+    const published = getXmlTagValue(entry, "published");
+    const description = getXmlTagValue(entry, "media:description") || title;
+    const link = getXmlAttributeValue(entry, "link", "href");
+
+    const youtubeUrl = getYoutubeWatchUrl(
+      link || `https://www.youtube.com/watch?v=${youtubeId}`,
+      youtubeId
+    );
+
+    if (!youtubeId || !title || !youtubeUrl) continue;
+
+    videos.push({
+      id: youtubeId,
+      title,
+      description,
+      youtubeUrl,
+      youtubeId,
+      uploadDate: published || undefined
+    });
+  }
+
+  return videos;
+}
 
 function mapRssVideo(video: ParsedYoutubeRssVideo): ProductYoutubeVideo {
   return {
