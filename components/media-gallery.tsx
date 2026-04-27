@@ -6,7 +6,7 @@ import type { MediaGalleryItem } from "@/lib/media-data";
 type MediaGalleryProps = {
   title?: string;
   subtitle?: string;
-  items: MediaGalleryItem[];
+  items: readonly MediaGalleryItem[];
   limit?: number;
   category?: string;
   productSlug?: string;
@@ -73,6 +73,7 @@ export function MediaGallery({
                   <span className="media-video-play">Xem video</span>
                 </a>
               )}
+
               <div className="media-gallery-body">
                 <strong>{item.title}</strong>
                 <p>{item.description}</p>
