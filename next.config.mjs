@@ -7,7 +7,13 @@ const nextConfig = {
     optimizePackageImports: []
   },
   images: {
-    formats: ["image/avif", "image/webp"]
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "img.youtube.com"
+      }
+    ]
   }
 };
 
