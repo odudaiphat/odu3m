@@ -336,3 +336,99 @@ export async function getProductVideos(product: Product, limit = 3) {
 
   return dedupeVideos(rssVideos).slice(0, limit);
 }
+type CategoryVideoInput = {
+  slug: string;
+  name: string;
+  intro?: string;
+  benefits?: string[];
+};
+
+const CATEGORY_VIDEO_KEYWORDS: Record<string, string[]> = {
+  "du-quan-cafe": [
+    "du quan cafe",
+    "du cafe",
+    "o du quan cafe",
+    "du che nang quan cafe",
+    "du san vuon",
+    "cafe san vuon",
+    "quan cafe",
+    "cafe"
+  ]
+};
+
+function scoreVideoForCategory(video: ProductYoutubeVideo, category: CategoryVideoInput) {
+  const haystack = normalizeText(`${video.title} ${video.description}`);
+  const compactHaystack = compactText(haystack);
+  const slug = normalizeText(category.slug);
+  const name = normalizeText(category.name);
+  const intro = normalizeText(category.intro ?? "");
+  const customKeywords = CATEGORY_VIDEO_KEYWORDS[category.slug] ?? [];
+
+  let score = 0;
+
+  if (compactHaystack.includes(compactText(slug))) score += 200;
+  if (name && haystack.includes(name)) score += 140;
+
+  for (const keyword of customKeywords) {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) continue;
+
+    if (haystack.includes(normalizedKeyword)) {
+      score += 120;
+    }
+
+    for (const token of normalizedKeyword.split(" ")) {
+      if (token.length >= 3 && haystack.includes(token)) {
+        score += 40;
+      }
+    }
+  }
+
+  for (const benefit of category.benefits ?? []) {
+    const normalizedBenefit = normalizeText(benefit);
+    if (normalizedBenefit.length >= 8 && haystack.includes(normalizedBenefit)) {
+      score += 12;
+    }
+  }
+
+  if (intro && haystack.includes(intro)) score += 10;
+
+  return score;
+}
+
+export async function getCategoryVideos(category: CategoryVideoInput, limit = 3) {
+  const rssVideos = await getChannelVideos();
+
+  if (rssVideos.length > 0) {
+    const matched = rssVideos
+      .map((video): ScoredVideo => ({
+        video,
+        score: scoreVideoForCategory(video, category)
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.video);
+
+    if (matched.length > 0) {
+      return dedupeVideos(matched).slice(0, limit);
+    }
+
+    return dedupeVideos(rssVideos).slice(0, limit);
+  }
+
+  const localMatched = guideVideos
+    .map(mapGuideVideo)
+    .map((video): ScoredVideo => ({
+      video,
+      score: scoreVideoForCategory(video, category)
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.video);
+
+  if (localMatched.length > 0) {
+    return dedupeVideos(localMatched).slice(0, limit);
+  }
+
+  return dedupeVideos(guideVideos.filter((video) => video.featured).map(mapGuideVideo)).slice(0, limit);
+}
